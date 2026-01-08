@@ -1,62 +1,19 @@
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+import torch
 
-# Load environment variables
-load_dotenv()
-
-# Project root directory
-ROOT_DIR = Path(__file__).resolve().parent.parent
-
-# Data paths
-RAW_DATA_DIR = ROOT_DIR / "data" / "raw"
-PROCESSED_DATA_DIR = ROOT_DIR / "data" / "processed"
-
-# Ensure directories exist
-RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
-PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-# Data file paths
-MEDICAL_TRANSCRIPTIONS_FILE = RAW_DATA_DIR / "mtsamples.csv"
-PROCESSED_DATASET_FILE = PROCESSED_DATA_DIR / "processed_transcriptions.csv"
-
-# Model configuration
-LLM_NAME = {
-    "llama": "meta-llama/Llama-3.2-1B",
-    "gemma": "google/gemma-2b"
-}
-MODEL_OUTPUT_DIR = ROOT_DIR / "models"
-MODEL_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-# Kaggle configuration
-KAGGLE_USERNAME = os.getenv("KAGGLE_USERNAME")
-KAGGLE_KEY = os.getenv("KAGGLE_KEY")
-
-# Load environment variables from .env file
-load_dotenv()
-
-# Project paths
-ROOT_DIR = Path(__file__).parent.parent
-DATA_DIR = ROOT_DIR / "data"
-KAGGLE_DIR = Path.home() / ".kaggle"
-
-# Ensure required directories exist
-DATA_DIR.mkdir(exist_ok=True)
-KAGGLE_DIR.mkdir(exist_ok=True)
-
-# Kaggle configuration
-KAGGLE_USERNAME = os.getenv('KAGGLE_USERNAME')
-KAGGLE_KEY = os.getenv('KAGGLE_KEY')
-
-# Create kaggle.json if credentials are available
-if KAGGLE_USERNAME and KAGGLE_KEY:
-    kaggle_json_path = KAGGLE_DIR / "kaggle.json"
-    if not kaggle_json_path.exists():
-        import json
-        with open(kaggle_json_path, 'w') as f:
-            json.dump({
-                "username": KAGGLE_USERNAME,
-                "key": KAGGLE_KEY
-            }, f)
-        # Set appropriate permissions
-        os.chmod(kaggle_json_path, 0o600)
+class Config:
+    MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+    DATASETS = ["dataset_1.jsonl", "dataset_2.jsonl", "dataset_3.jsonl"] # Replace with your paths
+    OUTPUT_DIR = "./qwen-lora-output"
+    
+    # LoRA Hyperparameters
+    LORA_R = 16
+    LORA_ALPHA = 32
+    LORA_DROPOUT = 0.05
+    TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    
+    # Training Hyperparameters
+    LEARNING_RATE = 2e-4
+    NUM_EPOCHS = 3
+    BATCH_SIZE = 4
+    GRADIENT_ACCUMULATION_STEPS = 4
+    MAX_SEQ_LENGTH = 1024
