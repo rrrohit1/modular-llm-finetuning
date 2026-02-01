@@ -1,9 +1,16 @@
+import sys
+from pathlib import Path
+
+# Add the project root to sys.path
+project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(project_root))
+
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from peft import LoraConfig, get_peft_model
 from trl import SFTTrainer
 from src.config import Config
-from src.data_preparing import prepare_data
+from src.data_prep import prepare_data
 
 def train():
     tokenizer = AutoTokenizer.from_pretrained(Config.MODEL_NAME)
@@ -25,7 +32,7 @@ def train():
     )
     
     model = get_peft_model(model, lora_config)
-    dataset = prepare_data(tokenizer)
+    dataset = prepare_data(tokenizer, data_paths=Config.DATASETS)
 
     training_args = TrainingArguments(
         output_dir=Config.OUTPUT_DIR,

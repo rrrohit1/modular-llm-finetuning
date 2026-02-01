@@ -1,7 +1,7 @@
 import torch
 
 class Config:
-    MODEL_NAME = "Qwen/Qwen2.5-1.5B-Instruct"
+    MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
     DATASETS = ["dataset_1.jsonl", "dataset_2.jsonl", "dataset_3.jsonl"] # Replace with your paths
     OUTPUT_DIR = "./qwen-lora-output"
     
@@ -17,3 +17,12 @@ class Config:
     BATCH_SIZE = 4
     GRADIENT_ACCUMULATION_STEPS = 4
     MAX_SEQ_LENGTH = 1024
+
+    # Dataset 1
+    # Mapping numeric labels to text for the model
+    bug_dataset_path = "data/raw/embold_train.json"
+    LABEL_MAP = {
+        0: "Bug",
+        1: "Feature",
+        2: "Question"
+    }
