@@ -1,99 +1,85 @@
 import argparse
 import os
+import sys
 from pathlib import Path
 
-from download_dataset import download_medical_transcriptions
-from prepare_data import prepare_data_for_pretraining
-from training import pre_training
-from config import LLM_NAME, PROCESSED_DATASET_FILE, MODEL_OUTPUT_DIR
+# Add project root to path for internal imports
+project_root = Path(__file__).resolve().parents[0]
+sys.path.insert(0, str(project_root))
+
+from src.config import Config
+from src.fine_tune import train
+# Note: If you still need to download the GitHub dataset automatically, 
+# you would import that utility here.
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Run the complete pipeline: download data, prepare dataset, and train model'
+        description='Run LoRA fine-tuning pipeline for GitHub Issue Classification'
     )
     
-    # Training parameters
-    parser.add_argument('--model_name', type=str, default=LLM_NAME["llama"],
-                      help='Name of the model to fine-tune')
-    parser.add_argument('--max_length', type=int, default=1024,
-                      help='Maximum sequence length for tokenization')
-    parser.add_argument('--num_train_epochs', type=int, default=1,
+    # Model & Data Overrides
+    parser.add_argument('--model_name', type=str, default=Config.MODEL_NAME,
+                      help=f'Model to fine-tune (default: {Config.MODEL_NAME})')
+    parser.add_argument('--dataset_path', type=str, default=Config.bug_dataset_path,
+                      help=f'Path to JSON dataset (default: {Config.bug_dataset_path})')
+    
+    # Hyperparameters
+    parser.add_argument('--epochs', type=int, default=Config.NUM_EPOCHS,
                       help='Number of training epochs')
-    parser.add_argument('--per_device_train_batch_size', type=int, default=2,
+    parser.add_argument('--batch_size', type=int, default=Config.BATCH_SIZE,
                       help='Training batch size per device')
-    parser.add_argument('--per_device_eval_batch_size', type=int, default=2,
-                      help='Evaluation batch size per device')
-    parser.add_argument('--learning_rate', type=float, default=2e-5,
-                      help='Learning rate for training')
+    parser.add_argument('--learning_rate', type=float, default=Config.LEARNING_RATE,
+                      help='Learning rate')
     
     # Pipeline control
-    parser.add_argument('--skip_download', action='store_true',
-                      help='Skip the data download step')
     parser.add_argument('--skip_prepare', action='store_true',
-                      help='Skip the data preparation step')
+                      help='Skip data preparation (not recommended if data is raw)')
     
     return parser.parse_args()
 
-def validate_paths():
-    # Check if Kaggle credentials are set
-    if not os.getenv("KAGGLE_USERNAME") or not os.getenv("KAGGLE_KEY"):
-        raise EnvironmentError("Kaggle credentials are not set. Please add them to your .env file.")
+def sync_config(args):
+    """Update the Config class attributes with CLI arguments at runtime."""
+    Config.MODEL_NAME = args.model_name
+    Config.bug_dataset_path = args.dataset_path
+    Config.NUM_EPOCHS = args.epochs
+    Config.BATCH_SIZE = args.batch_size
+    Config.LEARNING_RATE = args.learning_rate
 
-    # Check if raw data directory exists
-    raw_data_dir = Path(PROCESSED_DATASET_FILE).parent.parent / "raw"
-    if not raw_data_dir.exists():
-        raise FileNotFoundError(f"Raw data directory not found: {raw_data_dir}")
-
-    # Check if processed data directory exists
-    processed_data_dir = Path(PROCESSED_DATASET_FILE).parent
-    if not processed_data_dir.exists():
-        print(f"Processed data directory not found. Creating: {processed_data_dir}")
-        processed_data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Check if model output directory exists
-    if not Path(MODEL_OUTPUT_DIR).exists():
-        print(f"Model output directory not found. Creating: {MODEL_OUTPUT_DIR}")
-        Path(MODEL_OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+def validate_environment():
+    """Ensure data exists before starting."""
+    data_path = Path(Config.bug_dataset_path)
+    if not data_path.exists():
+        raise FileNotFoundError(
+            f"Dataset not found at {data_path}. "
+            "Please ensure 'embold_train.json' is in data/raw/"
+        )
+    
+    # Create output directory
+    os.makedirs(Config.OUTPUT_DIR, exist_ok=True)
 
 def main():
-    validate_paths()
     args = parse_args()
+    
+    # 1. Sync CLI args with the Config class
+    sync_config(args)
+    
+    # 2. Validate paths
+    print(f"--- Pipeline Starting ---")
+    print(f"Model: {Config.MODEL_NAME}")
+    print(f"Data:  {Config.bug_dataset_path}")
+    validate_environment()
 
-    # 1. Download the dataset
-    if not args.skip_download:
-        print("Step 1: Downloading dataset...")
-        try:
-            download_medical_transcriptions()
-        except Exception as e:
-            raise RuntimeError(f"Failed to download dataset: {e}")
-    else:
-        print("Skipping download step...")
-
-    # 2. Prepare the dataset
-    if not args.skip_prepare:
-        print("\nStep 2: Preparing dataset...")
-        try:
-            prepare_data_for_pretraining()
-        except Exception as e:
-            raise RuntimeError(f"Failed to prepare dataset: {e}")
-    else:
-        print("Skipping preparation step...")
-
-    # 3. Train the model
-    print("\nStep 3: Training model...")
+    # 3. Fine-tune the model
+    # We call the 'train' function from src/fine_tune.py
+    # Since 'train()' internally uses 'Config' and 'prepare_data()', 
+    # it will pick up our overrides.
+    print("\nStep: Starting LoRA Fine-tuning...")
     try:
-        pre_training(
-            model_name=args.model_name,
-            dataset_path=PROCESSED_DATASET_FILE,
-            output_dir=MODEL_OUTPUT_DIR,
-            max_length=args.max_length,
-            num_train_epochs=args.num_train_epochs,
-            per_device_train_batch_size=args.per_device_train_batch_size,
-            per_device_eval_batch_size=args.per_device_eval_batch_size,
-            learning_rate=args.learning_rate
-        )
+        train()
+        print(f"\nTraining Complete! Model saved to {Config.OUTPUT_DIR}/final_adapter")
     except Exception as e:
-        raise RuntimeError(f"Failed to train the model: {e}")
+        print(f"\nTraining failed with error: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
