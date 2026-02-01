@@ -7,18 +7,21 @@ This project fine-tunes large language models (LLaMA and Gemma) on medical trans
 ```bash
 ├── data/
 │   ├── raw/              # Raw medical transcriptions data
-│   │   └── mtsamples.csv
+│   │   └── embold_train.json
 │   └── processed/        # Processed dataset for training
 ├── models/              # Directory for saving trained models
 ├── notebooks/          
-│   └── starter.ipynb    # Data exploration notebook
+│   └── finetune-gemma1b.ipynb    # Fine-tuning notebook
 ├── src/
-│   ├── config.py        # Configuration and paths
+│   ├── config.py        # Configuration and training parameters
+│   ├── data_prep.py     # Data preparation and tokenization
 │   ├── download_dataset.py  # Dataset download script
-│   ├── prepare_data.py  # Data preprocessing
-│   ├── training.py      # Model training script
-│   └── main.py         # Main pipeline script
-└── environment.yaml    # Conda environment file
+│   ├── fine_tune.py     # Fine-tuning script using SFTTrainer and LoRA
+│   ├── evaluate.py      # Model evaluation script
+│   ├── inference.py     # Inference script
+│   ├── prompts.py       # Prompt templates
+│   └── main.py          # Main pipeline orchestrator
+└── environment.yaml     # Conda environment file
 ```
 
 ## Setup
@@ -47,13 +50,9 @@ KAGGLE_KEY=your_key
 
 ## Usage
 
-### Data Exploration
+### Running the Fine-Tuning Pipeline
 
-- Check `notebooks/starter.ipynb` for detailed data analysis and visualization
-
-### Running the Pipeline
-
-The complete pipeline can be run using the main script:
+The complete fine-tuning pipeline can be run using the main script:
 
 ```bash
 python src/main.py
@@ -61,34 +60,44 @@ python src/main.py
 
 Optional arguments:
 
-- `--model_name`: Model to fine-tune (default: google/gemma-2b, also supports meta-llama/Llama-2-7b-hf)
-- `--max_length`: Maximum sequence length (default: 1024)
-- `--num_train_epochs`: Number of training epochs (default: 1)
-- `--per_device_train_batch_size`: Training batch size (default: 2)
-- `--per_device_eval_batch_size`: Evaluation batch size (default: 2)
-- `--learning_rate`: Learning rate (default: 2e-5)
+- `--model_name`: Model to fine-tune (default: from `Config.MODEL_NAME`)
+- `--dataset_path`: Path to the dataset file (optional)
 - `--skip_download`: Skip downloading the dataset
-- `--skip_prepare`: Skip data preparation
 
-### Running Individual Steps
-
-1. Download the dataset:
+### Example Commands
 
 ```bash
-python src/download_dataset.py
+# Run with default configuration
+python src/main.py
+
+# Skip dataset download
+python src/main.py --skip_download
+
+# Specify a different model
+python src/main.py --model_name "meta-llama/Llama-2-7b-hf"
 ```
 
-1. Prepare the data:
+### Running Individual Components
 
-```bash
-python src/prepare_data.py
-```
+1. **Prepare Data**:
+   ```bash
+   python -c "from src.data_prep import prepare_data; from transformers import AutoTokenizer; tokenizer = AutoTokenizer.from_pretrained('google/gemma-2b'); prepare_data(tokenizer)"
+   ```
 
-1. Train the model:
+2. **Fine-Tune the Model**:
+   ```bash
+   python src/fine_tune.py
+   ```
 
-```bash
-python src/training.py
-```
+3. **Evaluate the Model**:
+   ```bash
+   python src/evaluate.py
+   ```
+
+4. **Run Inference**:
+   ```bash
+   python src/inference.py
+   ```
 
 ## Data
 
@@ -100,27 +109,31 @@ The project uses the [Medical Transcriptions](https://www.kaggle.com/datasets/tb
 
 ## Models
 
-The project supports two powerful language models:
+The project supports language model fine-tuning using LoRA (Low-Rank Adaptation) for efficient parameter tuning:
 
-1. **Google's Gemma 2B**: A lightweight yet powerful model, ideal for efficient fine-tuning
-2. **Meta's LLaMA**: A highly capable model known for its strong performance on domain-specific tasks
+1. **Google's Gemma 2B**: A lightweight yet powerful model, ideal for efficient fine-tuning on consumer hardware
+2. **Meta's LLaMA**: A highly capable model known for strong performance on domain-specific tasks
 
-Both models can be fine-tuned using causal language modeling on the medical transcriptions. The choice of model can be specified through command-line arguments or in the configuration file.
+### Default Model
 
-### Default Models Available
+The default model is specified in `src/config.py` and can be overridden via the `--model_name` CLI argument.
 
-- `google/gemma-2b`: Gemma 2B base model
-- `meta-llama/Llama-3.2-1B`: LLaMA3.2 1B base model
+### Fine-Tuning Approach
+
+- **Method**: Supervised Fine-Tuning (SFT) with LoRA adapters
+- **Trainer**: HuggingFace `SFTTrainer` from TRL library
+- **Quantization**: Support for bfloat16 and float16 precision
+- **Adapters**: LoRA configuration for memory-efficient fine-tuning
 
 ### Training Libraries
 
 The following libraries are used for efficient training:
 
-- `bitsandbytes` for quantization
-- `peft` for LoRA adapters
-- `transformers` for loading the model
-- `datasets` for loading and using the fine-tuning dataset
-- `trl` for the trainer class
+- `transformers` for loading models and tokenizers
+- `peft` for LoRA adapter configuration
+- `trl` for `SFTTrainer` and `SFTConfig`
+- `datasets` for dataset loading and processing
+- `torch` for PyTorch framework
 
 ## License
 
