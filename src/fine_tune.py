@@ -6,9 +6,10 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import LoraConfig, get_peft_model
-from trl import SFTTrainer
+# Change 1: Import SFTConfig instead of TrainingArguments
+from trl import SFTTrainer, SFTConfig 
 from src.config import Config
 from src.data_prep import prepare_data
 
@@ -18,7 +19,7 @@ def train():
 
     model = AutoModelForCausalLM.from_pretrained(
         Config.MODEL_NAME,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
+        dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
         device_map="auto"
     )
 
@@ -32,9 +33,10 @@ def train():
     )
     
     model = get_peft_model(model, lora_config)
-    dataset = prepare_data(tokenizer, data_paths=Config.DATASETS)
+    dataset = prepare_data(tokenizer)
 
-    training_args = TrainingArguments(
+    # 1. Keep SFTConfig for standard training hyperparams
+    training_args = SFTConfig(
         output_dir=Config.OUTPUT_DIR,
         per_device_train_batch_size=Config.BATCH_SIZE,
         gradient_accumulation_steps=Config.GRADIENT_ACCUMULATION_STEPS,
@@ -44,19 +46,19 @@ def train():
         save_strategy="epoch",
         fp16=not torch.cuda.is_bf16_supported(),
         bf16=torch.cuda.is_bf16_supported(),
-        report_to="none"
+        report_to="none",
+        # Remove max_seq_length and dataset_text_field from here
     )
 
+    # 2. Pass the dataset-specific arguments HERE instead
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        dataset_text_field="text",
-        max_seq_length=Config.MAX_SEQ_LENGTH,
         args=training_args,
     )
 
     trainer.train()
-    model.save_pretrained(f"{Config.OUTPUT_DIR}/final_adapter")
+    trainer.save_model(f"{Config.OUTPUT_DIR}/final_adapter")
 
 if __name__ == "__main__":
     train()

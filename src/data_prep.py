@@ -3,7 +3,7 @@ from datasets import load_dataset, concatenate_datasets
 from src.config import Config
 from src.prompts import format_github_issue
 
-def prepare_data(tokenizer):
+def prepare_data(tokenizer, number_of_samples=1000):
     """
     Loads Embold dataset and other datasets, merges them, and applies chat templates.
     """
@@ -12,7 +12,7 @@ def prepare_data(tokenizer):
     base_path = "data/raw"
     
     # Loading Train and Train_extra
-    dataset = load_dataset("json", data_files=os.path.join(base_path, "embold_train.json"), split="train")
+    dataset = load_dataset("json", data_files=os.path.join(base_path, "embold_train.json"), split="train", )
     
 
     def apply_template(example):
@@ -28,7 +28,7 @@ def prepare_data(tokenizer):
         return example
 
     # Shuffle and map
-    dataset = dataset.shuffle(seed=2026).map(
+    dataset = dataset.shuffle(seed=2026).select(range(min(number_of_samples, len(dataset)))).map(
         apply_template,
         remove_columns=dataset.column_names, # Clean up raw columns to save memory
         desc="Applying Chat Template"
